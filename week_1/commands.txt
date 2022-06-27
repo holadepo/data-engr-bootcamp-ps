@@ -1,0 +1,155 @@
+# start postgres with docker
+# didn't work
+docker run -it \
+    -e POSTGRES_USER="root" \
+    -e POSTGRES_PASSWORD="" \
+    -e POSTGRES_DB="ny_taxi" \
+    -v ny_taxi_postgres_data:/var/lib/postgresql/data \
+    -p 5431:5432 \
+    postgres:13
+
+# worked. Note that the problem is that a full path is needed, but I was specifying a relative path
+docker run -it \
+    -e POSTGRES_USER="root" \
+    -e POSTGRES_PASSWORD="" \
+    -e POSTGRES_DB="ny_taxi" \
+    -p 5431:5432 \
+    -v $(pwd)/ny_taxi_postgres_data:/var/lib/postgresql/data \
+    --network=pg-network \
+    --name=pg-database \
+    postgres:13
+
+# run pgadmin4
+docker run -it \
+    -e PGADMIN_DEFAULT_EMAIL="admin@admin.com" \
+    -e PGADMIN_DEFAULT_PASSWORD="" \
+    -p 9090:80 \
+    --network=pg-network \
+    --name=pgadmin \
+    dpage/pgadmin4
+
+# create docker network
+docker network create pg-network 
+
+
+
+# install pgcli on mac
+brew install pgcli
+
+# connect to postgres with pgcli 
+pgcli -h localhost -u root -d ny_taxi -p 5431
+
+
+# install jupyter
+pip3 install jupyter
+
+# start jupyter notebook
+jupyter notebook
+
+#pgcli commands
+\dt /* for listing tables in the current db*/
+\d <table_name> /*describe a table*/
+
+# importing the data in parquet format
+import pyarrow.parquet as pq
+trips = pq.read_table('trips.parquet')
+trips = trips.to_pandas()
+
+# convert pandas dataframe to sql DDL query
+pd.io.sql.get_schema(df, name='yellow_taxi_data')
+
+# create postgres table from dataframe
+trips.head(n=0).to_sql(name='yellow_taxi_data', con=engine, if_exists='replace')
+
+# get the first N rows of a dataframe 
+trips.head(n=N)
+
+# write remaining part of dataframe to db 
+trips.to_sql(name='yellow_taxi_data', con=engine, if_exists='append')
+
+# time a command in jupyter 
+%time [command]
+
+# convert jupyter notebook to python script
+jupyter nbconvert --to=script <notebook_name>
+
+# fixing issue with nbconvert template dir not found error
+cd /Users/holadepo/Library/Jupyter
+ln -s /opt/homebrew/share/jupyter/nbconvert/templates .
+
+https://nbconvert.readthedocs.io/en/latest/customizing.html
+
+# run jupyter from a docker container
+docker run -it --rm -p 10000:8888 -v "${PWD}":/home/jovyan/work jupyter/scipy-notebook:9d110fdcab51
+
+URL="https://nyc-tlc.s3.amazonaws.com/trip+data/yellow_tripdata_2022-01.parquet"
+URL="https://s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2012-01.parquet"
+
+python3 ingest_data.py \
+    --user=root \
+    --password= \
+    --host=localhost \
+    --port=5431 \
+    --db=ny_taxi \
+    --table_name=yellow_taxi_data \
+    --url=${URL}
+
+
+docker build -t holadepo/taxi_ingest:v0001 .
+
+docker run -it \
+    --network=pg-network \
+    holadepo/taxi_ingest:v0001 \
+    --user=root \
+    --password= \
+    --host=pg-database \
+    --port=5432 \
+    --db=ny_taxi \
+    --table_name=yellow_taxi_data \
+    --url=${URL}
+
+
+# start a simple http server. 
+# can be used to serve local files for download locally through a URL
+python -m http.server
+
+
+# terraform
+# https://github.com/DataTalksClub/data-engineering-zoomcamp/blob/main/week_1_basics_n_setup/1_terraform_gcp/2_gcp_overview.md#initial-setup
+# https://github.com/DataTalksClub/data-engineering-zoomcamp/tree/main/week_1_basics_n_setup/1_terraform_gcp/terraform
+export GOOGLE_APPLICATION_CREDENTIALS="~/Downloads/"
+# Refresh token/session, and verify authentication
+gcloud auth application-default login
+
+# generate ssh key
+ssh-keygen -t rsa -f ~/.ssh/my_gcp -C holadepo -b 2048
+
+# ssh into gcp vm, using generated ssh key
+# https://cloud.google.com/compute/docs/connect/create-ssh-keys
+ssh -i ~/.ssh/my_gcp holadepo@35.228.110.110
+
+# check system resource usage:
+htop 
+
+# download and install anaconda
+wget https://repo.anaconda.com/archive/Anaconda3-2022.05-Linux-x86_64.sh
+bash Anaconda3-2022.05-Linux-x86_64.sh
+
+# configuring ssh hosts in the ~/.ssh/config file 
+Host de-zoomcamp
+  HostName 35.228.110.110
+  User holadepo
+  IdentityFile ~/.ssh/my_gcp
+
+# add folder to path 
+# append this to .bashrc file 
+export PATH="${HOME}/bin:${PATH}"
+
+
+pip install pgcli 
+pip uninstall pgcli 
+conda install -c conda-forge pgcli
+pip install -U mycli
+
+
+gcloud auth activate-service-account --key-file=$GOOGLE_APPLICATION_CREDENTIALS
